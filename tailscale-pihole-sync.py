@@ -33,7 +33,7 @@ PIHOLE_CONFIG = {
 }
 
 # Domain to append to hostnames (can be customized)
-HOSTNAME_SUFFIX = os.environ.get("HOSTNAME_SUFFIX", ".lan")
+HOSTNAME_SUFFIX = os.environ.get("HOSTNAME_SUFFIX", ".ts")
 
 
 def get_tailscale_status() -> dict:
@@ -265,3 +265,4 @@ def sync_tailscale_to_pihole():
 
 if __name__ == "__main__":
     sync_tailscale_to_pihole()
+
