@@ -17,7 +17,7 @@ load_dotenv()
 # Configure logging
 LOG_FILE = os.environ.get("LOG_FILE", "./tailscale-pihole-sync.log")
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.ERROR,
     format="%(asctime)s - %(message)s",
     handlers=[
         logging.FileHandler(LOG_FILE),
