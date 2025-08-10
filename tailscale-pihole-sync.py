@@ -5,6 +5,7 @@ import logging
 import os
 import subprocess
 import sys
+import ipaddress
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
@@ -226,14 +227,14 @@ def sync_tailscale_to_pihole():
             # Build entries for online Tailscale devices
             for peer_id, peer in peers.items():
                 if peer.get("Online", False):
-                    # Get the IP address (prefer Tailscale IPs)
-                    ip = None
+                    # Get all IP addresses (prefer Tailscale IPs)
+                    ips = []
                     if peer.get("TailscaleIPs") and len(peer["TailscaleIPs"]) > 0:
-                        ip = peer["TailscaleIPs"][0]
+                        ips = peer["TailscaleIPs"]
                     elif peer.get("IP"):
-                        ip = peer["IP"]
+                        ips = [peer["IP"]]
 
-                    if not ip:
+                    if not ips:
                         logger.warning(f"Warning: No IP found for peer {peer_id}")
                         continue
 
@@ -242,11 +243,19 @@ def sync_tailscale_to_pihole():
                         logger.warning(f"Warning: No hostname extracted for peer {peer_id}")
                         continue
 
-                    desired_entries[domain] = ip
-                    logger.info(f"Processed Tailscale device: {domain} -> {ip}")
+                    # Process both IPv4 and IPv6 addresses
+                    for ip in ips:
+                        try:
+                            ip_obj = ipaddress.ip_address(ip)
+                            desired_entries[f"{ip} {domain}"] = True
+                            ip_type = "IPv6" if ip_obj.version == 6 else "IPv4"
+                            logger.info(f"Processed Tailscale device: {domain} -> {ip} ({ip_type})")
+                        except ValueError:
+                            logger.warning(f"Warning: Invalid IP address '{ip}' for peer {peer_id}")
+                            continue
 
             # Create a list of entries in the format Pi-hole v6 expects ("IP domain")
-            dns_entries = [f"{ip} {domain}" for domain, ip in desired_entries.items()]
+            dns_entries = list(desired_entries.keys())
 
             # Update the entries in Pi-hole
             success = update_custom_dns_entries(sid, dns_entries)
