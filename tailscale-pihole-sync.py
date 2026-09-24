@@ -18,7 +18,7 @@ load_dotenv()
 # Configure logging
 LOG_FILE = os.environ.get("LOG_FILE", "./tailscale-pihole-sync.log")
 logging.basicConfig(
-    level=logging.ERROR,
+    level=logging.INFO,
     format="%(asctime)s - %(message)s",
     handlers=[
         logging.FileHandler(LOG_FILE),
@@ -74,7 +74,7 @@ def authenticate_pihole() -> Optional[str]:
             return None
 
         sid = data["session"]["sid"]
-        logger.info("Successfully authenticated with Pi-hole")
+        logger.debug("Successfully authenticated with Pi-hole")
         return sid
     except requests.RequestException as e:
         logger.error(f"Error authenticating with Pi-hole: {e}")
@@ -92,7 +92,7 @@ def logout_pihole(sid: str) -> bool:
         response = requests.delete(url, headers=headers)
         response.raise_for_status()
 
-        logger.info("Successfully logged out from Pi-hole")
+        logger.debug("Successfully logged out from Pi-hole")
         return True
     except requests.RequestException as e:
         logger.error(f"Error logging out from Pi-hole: {e}")
@@ -214,7 +214,7 @@ def sync_tailscale_to_pihole():
 
             # Get existing Pi-hole DNS entries
             existing_entries = get_custom_dns_entries(sid)
-            logger.info(f"Found {len(existing_entries)} existing custom DNS entries in Pi-hole")
+            logger.debug(f"Found {len(existing_entries)} existing custom DNS entries in Pi-hole")
 
             # Track which entries should exist
             desired_entries = {}
@@ -249,7 +249,7 @@ def sync_tailscale_to_pihole():
                             ip_obj = ipaddress.ip_address(ip)
                             desired_entries[f"{ip} {domain}"] = True
                             ip_type = "IPv6" if ip_obj.version == 6 else "IPv4"
-                            logger.info(f"Processed Tailscale device: {domain} -> {ip} ({ip_type})")
+                            logger.debug(f"Processed Tailscale device: {domain} -> {ip} ({ip_type})")
                         except ValueError:
                             logger.warning(f"Warning: Invalid IP address '{ip}' for peer {peer_id}")
                             continue
