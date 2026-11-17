@@ -16,9 +16,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configure logging
-LOG_FILE = os.environ.get("LOG_FILE", "./tailscale-pihole-sync.log")
+LOG_FILE = os.environ.get("LOG_FILE", "/var/log/tailscale-pihole-sync.log")
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="%(asctime)s - %(message)s",
     handlers=[
         logging.FileHandler(LOG_FILE),
@@ -33,9 +33,9 @@ PIHOLE_CONFIG = {
     "password": os.environ.get("PIHOLE_PASSWORD", "")
 }
 
-# Domain to append to hostnames (can be customized)
-HOSTNAME_SUFFIX = os.environ.get("HOSTNAME_SUFFIX", ".ts")
-
+# Comma-separated list of domains to append to hostnames (can be customized)
+HOSTNAME_SUFFIXES = os.environ.get("HOSTNAME_SUFFIXES", ".ts")
+suffixes = [s.strip() for s in HOSTNAME_SUFFIXES.split(',')]
 
 def get_tailscale_status() -> dict:
     """
@@ -178,7 +178,7 @@ def update_custom_dns_entries(sid: str, entries: List[str]) -> bool:
         return False
 
 
-def extract_hostname(dns_name: str) -> str:
+def extract_hostname(dns_name: str, suffix) -> str:
     """
     Extract hostname from Tailscale DNS name and append suffix
     """
@@ -186,8 +186,11 @@ def extract_hostname(dns_name: str) -> str:
     parts = dns_name.split(".")
     hostname = parts[0]
 
+    if not suffix[0] == '.':
+        logger.warn("Suffix doesn't begin with a dot. Adding one preemptively.")
+        suffix = f".{suffix}"
     # Append the hostname suffix (.lan by default)
-    return f"{hostname}{HOSTNAME_SUFFIX}"
+    return f"{hostname}{suffix}"
 
 
 def sync_tailscale_to_pihole():
@@ -238,21 +241,22 @@ def sync_tailscale_to_pihole():
                         logger.warning(f"Warning: No IP found for peer {peer_id}")
                         continue
 
-                    domain = extract_hostname(peer.get("DNSName", ""))
-                    if not domain:
-                        logger.warning(f"Warning: No hostname extracted for peer {peer_id}")
-                        continue
-
-                    # Process both IPv4 and IPv6 addresses
-                    for ip in ips:
-                        try:
-                            ip_obj = ipaddress.ip_address(ip)
-                            desired_entries[f"{ip} {domain}"] = True
-                            ip_type = "IPv6" if ip_obj.version == 6 else "IPv4"
-                            logger.debug(f"Processed Tailscale device: {domain} -> {ip} ({ip_type})")
-                        except ValueError:
-                            logger.warning(f"Warning: Invalid IP address '{ip}' for peer {peer_id}")
+                    for suffix in suffixes:
+                        domain = extract_hostname(peer.get("DNSName", ""), suffix)
+                        if not domain:
+                            logger.warning(f"Warning: No hostname extracted for peer {peer_id}")
                             continue
+
+                        # Process both IPv4 and IPv6 addresses
+                        for ip in ips:
+                            try:
+                                ip_obj = ipaddress.ip_address(ip)
+                                desired_entries[f"{ip} {domain}"] = True
+                                ip_type = "IPv6" if ip_obj.version == 6 else "IPv4"
+                                logger.info(f"Processed Tailscale device: {domain} -> {ip} ({ip_type})")
+                            except ValueError:
+                                logger.warning(f"Warning: Invalid IP address '{ip}' for peer {peer_id}")
+                                continue
 
             # Create a list of entries in the format Pi-hole v6 expects ("IP domain")
             dns_entries = list(desired_entries.keys())
